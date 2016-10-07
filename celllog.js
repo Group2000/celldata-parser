@@ -237,6 +237,8 @@ module.exports = {
           measurement.encryptiontype=data[10];
         if(data[11]!=='null')
           measurement.authenticationtype=data[11];
+      } else {
+    	  measurement.encryptiontype="null";
       }
       measurements.push(measurement);
       return validateWifi(measurement, data);
