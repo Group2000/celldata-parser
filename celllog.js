@@ -233,9 +233,9 @@ module.exports = {
       measurement.signal=parseInt(data[8]);
       measurement.quality=data[9];
       if(measurement.encryption){
-        if(data[8]!=='null')
+        if(data[10]!=='null')
           measurement.encryptiontype=data[10];
-        if(data[9]!=='null')
+        if(data[11]!=='null')
           measurement.authenticationtype=data[11];
       }
       measurements.push(measurement);
