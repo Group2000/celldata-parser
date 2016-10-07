@@ -230,14 +230,14 @@ module.exports = {
       measurement.ssid=data[5];
       measurement.mode=data[6];
       measurement.encryption=Boolean(data[7]);
+      measurement.signal=parseInt(data[8]);
+      measurement.quality=data[9];
       if(measurement.encryption){
         if(data[8]!=='null')
-          measurement.encryptiontype=data[8];
+          measurement.encryptiontype=data[10];
         if(data[9]!=='null')
-          measurement.authenticationtype=data[9];
+          measurement.authenticationtype=data[11];
       }
-      measurement.signal=parseInt(data[10]);
-      measurement.quality=data[11];
       measurements.push(measurement);
       return validateWifi(measurement, data);
     }
