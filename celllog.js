@@ -98,6 +98,9 @@ module.exports = {
       if (data[3] == 'no measurement')
         return null;
 
+      if (data[3] == 'JAMMING_STATE')
+    	  return null;
+      
       measurement.timestamp = gps.timestamp + localtime - gps.localtime;
       measurement.location = [gps.lon, gps.lat];
       measurement.altitude = gps.altitude;
@@ -135,6 +138,9 @@ module.exports = {
       if (data[3] == 'no measurement')
         return null;
 
+      if (data[3] == 'JAMMING_STATE')
+    	  return null;
+    
       measurement.timestamp = gps.timestamp + localtime - gps.localtime;
       measurement.location = [gps.lon, gps.lat];
       measurement.altitude = gps.altitude;
@@ -216,6 +222,11 @@ module.exports = {
         logger.log('Warning','Measurement with unknown GPS coordinates');
         return null;
       }
+    
+      if (data[3] == 'JAMMING_STATE')
+    	  return null;
+      
+      
       
       measurement.timestamp = gps.timestamp + localtime - gps.localtime;
       measurement.location = [gps.lon, gps.lat];
