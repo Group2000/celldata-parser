@@ -317,7 +317,7 @@ function validate(measurement, data) {
       measurement.area > 0 &&
       measurement.area < 65535 &&
       measurement.cell > 0 &&
-      measurement.cell < 2^28 &&
+      measurement.cell < 268435456 &&
       measurement.channel > 0 &&
       measurement.signal > -200)
     return measurement
