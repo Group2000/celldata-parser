@@ -12,7 +12,7 @@ config.watch={
 	processed:'data/processed/'
 };
 config.amqp={
-	server:'amqp://localhost',
+	server:'amqp://user:password@rabbitmq',
 	queue:'measurements-dev'
 };
 
