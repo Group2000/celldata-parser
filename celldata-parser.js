@@ -120,22 +120,20 @@ amqp.connect(config.amqp.server).then(function(c) {
 		fs.watch(watchFolder, function(event, filename) {
 
 			if (filename) {
-				if (event === 'rename') {
-					if (path.extname(filename) === '.log') {
-						fs.stat(watchFolder + filename, function(err, stats) {
-							if (!err)
-								if (stats.isFile()) {
-									processFile(filename, ch);
-								}
-						});
-					} else if (path.extname(filename) === '.gz') {
-						fs.stat(watchFolder + filename, function(err, stats) {
-							if (!err)
-								if (stats.isFile()) {
-									processZippedFile(filename, ch);
-								}
-						});
-					}
+				if (path.extname(filename) === '.log') {
+					fs.stat(watchFolder + filename, function(err, stats) {
+						if (!err)
+							if (stats.isFile()) {
+								processFile(filename, ch);
+							}
+					});
+				} else if (path.extname(filename) === '.gz') {
+					fs.stat(watchFolder + filename, function(err, stats) {
+						if (!err)
+							if (stats.isFile()) {
+								processZippedFile(filename, ch);
+							}
+					});
 				}
 			}
 
