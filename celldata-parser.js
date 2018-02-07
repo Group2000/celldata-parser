@@ -12,6 +12,8 @@ var split = require('split');
 
 var watchFolder = __dirname + '/' + config.watch.folder;
 var processedFolder = __dirname + '/' + config.watch.processed;
+var files = [];
+var channel;
 
 function mkCallback(i) {
 
@@ -47,6 +49,7 @@ function processFile(filename, ch) {
 		});
 		cl.on('end', function() {
 			logger.log('status', 'FINISHED PROCESSING ' + filename);
+			processNext();
 		});
 
 	});
@@ -65,14 +68,17 @@ function processFile(filename, ch) {
 }
 
 function processZippedFile(filename, ch) {
-	logger.log('status','Unzipping file ' + filename);
-	const gunzip = zlib.createGunzip();
-	const fs = require('fs');
-	const inp = fs.createReadStream(watchFolder+filename);
+	logger.log('status', 'Unzipping file ' + filename);
+	const
+	gunzip = zlib.createGunzip();
+	const
+	fs = require('fs');
+	const
+	inp = fs.createReadStream(watchFolder + filename);
 	clparser = celllog.createCellog();
-	
+
 	var cl = inp.pipe(gunzip).pipe(split()).pipe(clparser);
-	
+
 	cl.on('data', function(chunk) {
 		i++;
 		var send = JSON.stringify(chunk);
@@ -91,55 +97,57 @@ function processZippedFile(filename, ch) {
 		logger.log('status', 'FINISHED PROCESSING ' + filename);
 		logger.log('info', 'Messages processed:' + i + ' total (' + i_cell
 				+ ' cells, ' + i_wifi + ' wifi)');
-		
-		fs.rename(watchFolder +filename,processedFolder+filename,function(err){
-			if(err){
+
+		fs.rename(watchFolder + filename, processedFolder + filename, function(
+				err) {
+			if (err) {
 				console.log(err);
 			}
 		});
+		processNext();
 	});
 }
 
 amqp.connect(config.amqp.server).then(function(c) {
 	c.createConfirmChannel().then(function(ch) {
+		channel = ch;
 
 		logger.log('status', 'AMQP connection established');
 		// read current files in dir
-		fs.readdir(watchFolder, function(err, files) {
-			files.map(function(file) {
-				fs.stat(watchFolder + file, function(err, stats) {
-					if (stats.isFile() && path.extname(file) === '.log') {
-						processFile(file, ch);
-					}
-				})
-			})
+		fs.readdir(watchFolder, function(err, newFiles) {
+			files = files.concat(newFiles);
 		});
 
 		// start watching dir for new files
 		logger.log('status', 'Watching folder ' + watchFolder);
 		fs.watch(watchFolder, function(event, filename) {
-
 			if (filename) {
 				if (event === 'rename') {
-					if (path.extname(filename) === '.log') {
-						fs.stat(watchFolder + filename, function(err, stats) {
-							if (!err)
-								if (stats.isFile()) {
-									processFile(filename, ch);
-								}
-						});
-					} else if (path.extname(filename) === '.gz') {
-						fs.stat(watchFolder + filename, function(err, stats) {
-							if (!err)
-								if (stats.isFile()) {
-									processZippedFile(filename, ch);
-								}
-						});
-					}
+					files.push(filename);
 				}
 			}
-
 		});
-
+		setTimeout(processNext, 1000);
 	});
 });
+
+function processNext() {
+	var file = files.pop();
+	logger.log('status', 'processNext file: ' + file);
+	if (typeof file !== 'undefined' && file) {
+		fs.stat(watchFolder + file, function(err, stats) {
+			if (err) {
+				// File does not exist
+				processNext();
+			} else if (stats.isFile() && path.extname(file) === '.log') {
+				processFile(file, channel);
+			} else if (stats.isFile() && path.extname(file) === '.gz') {
+				processZippedFile(file, channel);
+			} else {
+				processNext();
+			}
+		});
+	} else {
+		setTimeout(processNext, 10000);
+	}
+}
