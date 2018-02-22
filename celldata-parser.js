@@ -15,6 +15,31 @@ var processedFolder = __dirname + '/' + config.watch.processed;
 var files = [];
 var channel;
 
+
+// method that starts this processed
+// 1. reads current
+// 2. start watch folder
+// 3. start processNext method
+function startup() {
+	logger.log('status', 'CellData parser is started');
+
+	// read current files in dir
+	fs.readdir(watchFolder, function(err, newFiles) {
+		files = files.concat(newFiles);
+	});
+
+	// start watching dir for new files
+	logger.log('status', 'Watching folder ' + watchFolder);
+	fs.watch(watchFolder, function(event, filename) {
+		if (filename) {
+			if (event === 'rename') {
+				files.push(filename);
+			}
+		}
+	});
+	setTimeout(processNext, 1000);
+}
+
 function mkCallback(i) {
 
 	return function(err) {
@@ -22,8 +47,11 @@ function mkCallback(i) {
 			logger.log('error', 'Message' + i + 'failed');
 		}
 	}
+
 }
 
+// processFile opens the given filename, split it, parse it and send to
+// the WIFI or cell queue.
 function processFile(filename, ch) {
 	var readStream = fs.createReadStream(watchFolder + filename);
 
@@ -38,12 +66,10 @@ function processFile(filename, ch) {
 			var send = JSON.stringify(chunk);
 			if (chunk.bssid) {
 				i_wifi++;
-				ch.publish(config.amqp.queue, 'WIFI', new Buffer(send), {},
-						mkCallback(i));
+				ch.publish(config.amqp.queue, 'WIFI', new Buffer(send), {}, mkCallback(i));
 			} else {
 				i_cell++;
-				ch.publish(config.amqp.queue, 'cell', new Buffer(send), {},
-						mkCallback(i));
+				ch.publish(config.amqp.queue, 'cell', new Buffer(send), {}, mkCallback(i));
 			}
 
 		});
@@ -55,26 +81,22 @@ function processFile(filename, ch) {
 	});
 
 	readStream.on('end', function() {
-		logger.log('info', 'Messages processed:' + i + ' total (' + i_cell
-				+ ' cells, ' + i_wifi + ' wifi)');
+		logger.log('info', 'Messages processed:' + i + ' total (' + i_cell + ' cells, ' + i_wifi + ' wifi)');
 
-		fs.rename(watchFolder + filename, processedFolder + filename, function(
-				err) {
-			if (err)
+		fs.rename(watchFolder + filename, processedFolder + filename, function(err) {
+			if (err) {
 				console.log(err);
-
+			}
 		});
 	})
 }
 
 function processZippedFile(filename, ch) {
 	logger.log('status', 'Unzipping file ' + filename);
-	const
-	gunzip = zlib.createGunzip();
-	const
-	fs = require('fs');
-	const
-	inp = fs.createReadStream(watchFolder + filename);
+	const gunzip = zlib.createGunzip();
+	const fs = require('fs');
+	const inp = fs.createReadStream(watchFolder + filename);
+
 	clparser = celllog.createCellog();
 
 	var cl = inp.pipe(gunzip).pipe(split()).pipe(clparser);
@@ -84,22 +106,18 @@ function processZippedFile(filename, ch) {
 		var send = JSON.stringify(chunk);
 		if (chunk.bssid) {
 			i_wifi++;
-			ch.publish(config.amqp.queue, 'WIFI', new Buffer(send), {},
-					mkCallback(i));
+			ch.publish(config.amqp.queue, 'WIFI', new Buffer(send), {}, mkCallback(i));
 		} else {
 			i_cell++;
-			ch.publish(config.amqp.queue, 'cell', new Buffer(send), {},
-					mkCallback(i));
+			ch.publish(config.amqp.queue, 'cell', new Buffer(send), {}, mkCallback(i));
 		}
 
 	});
 	cl.on('end', function() {
 		logger.log('status', 'FINISHED PROCESSING ' + filename);
-		logger.log('info', 'Messages processed:' + i + ' total (' + i_cell
-				+ ' cells, ' + i_wifi + ' wifi)');
+		logger.log('info', 'Messages processed:' + i + ' total (' + i_cell + ' cells, ' + i_wifi + ' wifi)');
 
-		fs.rename(watchFolder + filename, processedFolder + filename, function(
-				err) {
+		fs.rename(watchFolder + filename, processedFolder + filename, function(err) {
 			if (err) {
 				console.log(err);
 			}
@@ -112,24 +130,19 @@ amqp.connect(config.amqp.server).then(function(c) {
 	c.createConfirmChannel().then(function(ch) {
 		channel = ch;
 
-		logger.log('status', 'AMQP connection established');
-		// read current files in dir
-		fs.readdir(watchFolder, function(err, newFiles) {
-			files = files.concat(newFiles);
-		});
 
-		// start watching dir for new files
-		logger.log('status', 'Watching folder ' + watchFolder);
-		fs.watch(watchFolder, function(event, filename) {
-			if (filename) {
-				if (event === 'rename') {
-					files.push(filename);
-				}
-			}
-		});
-		setTimeout(processNext, 1000);
 	});
 });
+
+
+
+// send data to queue name, makes a connection first and closes it afterwards.
+function sendToQueue(name, data) {
+	// connect
+	// create confirmChannel
+	// send to queue
+}
+
 
 function processNext() {
 	var file = files.pop();
@@ -151,3 +164,6 @@ function processNext() {
 		setTimeout(processNext, 10000);
 	}
 }
+
+// End yes we're up and running
+startup();
