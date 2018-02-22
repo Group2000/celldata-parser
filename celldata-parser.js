@@ -13,7 +13,6 @@ var split = require('split');
 var watchFolder = __dirname + '/' + config.watch.folder;
 var processedFolder = __dirname + '/' + config.watch.processed;
 var files = [];
-var channel;
 var amqpConnection;
 
 
@@ -23,7 +22,7 @@ var amqpConnection;
 // 2. start watch folder
 // 3. start processNext method
 function startup() {
-	connectToRabbitMQ();
+	connectToRabbitMQ(processNext);
 	logger.log('status', 'CellData parser is started');
 
 	// read current files in dir
@@ -40,7 +39,6 @@ function startup() {
 			}
 		}
 	});
-	setTimeout(processNext, 1000);
 }
 
 function mkCallback(i) {
@@ -55,7 +53,7 @@ function mkCallback(i) {
 
 // processFile opens the given filename, split it, parse it and send to
 // the WIFI or cell queue.
-function processFile(filename, ch) {
+function processFile(filename) {
 	var readStream = fs.createReadStream(watchFolder + filename);
 
 	readStream.on('open', function() {
@@ -94,10 +92,9 @@ function processFile(filename, ch) {
 	})
 }
 
-function processZippedFile(filename, ch) {
+function processZippedFile(filename) {
 	logger.log('status', 'Unzipping file ' + filename);
 	const gunzip = zlib.createGunzip();
-	const fs = require('fs');
 	const inp = fs.createReadStream(watchFolder + filename);
 
 	clparser = celllog.createCellog();
@@ -129,17 +126,7 @@ function processZippedFile(filename, ch) {
 	});
 }
 
-
-
-amqp.connect(config.amqp.server).then(function(c) {
-	c.createConfirmChannel().then(function(ch) {
-		channel = ch;
-
-
-	});
-});
-
-function connectToRabbitMQ() {
+function connectToRabbitMQ(whenConnected) {
 	amqp.connect(config.amqp.server, function(err, conn) {
 		if (err) {
       console.error("[AMQP] couldn't connect to RabbitMQ ", err.message);
@@ -158,6 +145,8 @@ function connectToRabbitMQ() {
 	 	});
 	 	console.log("[AMQP] connected");
 	 	amqpConnection = conn;
+		// ready to start processing, wait for 1 sec
+		setTimeout(whenConnected, 1000);
 	});
 }
 
@@ -192,9 +181,9 @@ function processNext() {
 				// File does not exist
 				processNext();
 			} else if (stats.isFile() && path.extname(file) === '.log') {
-				processFile(file, channel);
+				processFile(file);
 			} else if (stats.isFile() && path.extname(file) === '.gz') {
-				processZippedFile(file, channel);
+				processZippedFile(file);
 			} else {
 				processNext();
 			}
