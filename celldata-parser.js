@@ -14,13 +14,16 @@ var watchFolder = __dirname + '/' + config.watch.folder;
 var processedFolder = __dirname + '/' + config.watch.processed;
 var files = [];
 var channel;
+var amqpConnection;
 
 
 // method that starts this processed
+// 0. connect to RabbitMQ
 // 1. reads current
 // 2. start watch folder
 // 3. start processNext method
 function startup() {
+	connectToRabbitMQ();
 	logger.log('status', 'CellData parser is started');
 
 	// read current files in dir
@@ -66,10 +69,10 @@ function processFile(filename, ch) {
 			var send = JSON.stringify(chunk);
 			if (chunk.bssid) {
 				i_wifi++;
-				ch.publish(config.amqp.queue, 'WIFI', new Buffer(send), {}, mkCallback(i));
+				sendToQueue('WIFI', send);
 			} else {
 				i_cell++;
-				ch.publish(config.amqp.queue, 'cell', new Buffer(send), {}, mkCallback(i));
+				sendToQueue('cell', send);
 			}
 
 		});
@@ -126,6 +129,8 @@ function processZippedFile(filename, ch) {
 	});
 }
 
+
+
 amqp.connect(config.amqp.server).then(function(c) {
 	c.createConfirmChannel().then(function(ch) {
 		channel = ch;
@@ -134,20 +139,54 @@ amqp.connect(config.amqp.server).then(function(c) {
 	});
 });
 
-
-
-// send data to queue name, makes a connection first and closes it afterwards.
-function sendToQueue(name, data) {
-	// connect
-	// create confirmChannel
-	// send to queue
+function connectToRabbitMQ() {
+	amqp.connect(config.amqp.server, function(err, conn) {
+		if (err) {
+      console.error("[AMQP] couldn't connect to RabbitMQ ", err.message);
+			// retry in 1 second
+      return setTimeout(connectToRabbitMQ, 1000);
+    }
+		conn.on("error", function(err) {
+			if (err.message !== "Connection closing") {
+				 console.error("[AMQP] conn error", err.message);
+			}
+	 	});
+	 	conn.on("close", function() {
+			 console.error("[AMQP] reconnecting");
+			 // retry in 1 second
+			 return setTimeout(connectToRabbitMQ, 1000);
+	 	});
+	 	console.log("[AMQP] connected");
+	 	amqpConnection = conn;
+	});
 }
 
+// closing connection when there is an error
+function closeOnErr(err) {
+  if (!err) return false;
+  console.error("[AMQP] error", err);
+  amqpConnection.close();
+  return true;
+}
+
+// send data to queue name, makes a connection first and closes it afterwards.
+function sendToQueue(routingKey, data) {
+	amqpConnection.createConfirmChannel(function(err, ch) {
+		if (closeOnErr(err)) return;
+    ch.on("error", function(err) {
+      console.error("[AMQP] channel error", err.message);
+    });
+    ch.on("close", function() {
+      console.log("[AMQP] channel closed");
+    });
+		ch.publish(config.amqp.queue, routingKey, new Buffer(data), {}, mkCallback(i));
+	});
+}
 
 function processNext() {
 	var file = files.pop();
-	logger.log('status', 'processNext file: ' + file);
 	if (typeof file !== 'undefined' && file) {
+		logger.log('status', 'processNext file: ' + file);
 		fs.stat(watchFolder + file, function(err, stats) {
 			if (err) {
 				// File does not exist
