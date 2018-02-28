@@ -179,7 +179,7 @@ function createConfirmChannel() {
 
 // send data to queue name, makes a connection first and closes it afterwards.
 function sendToQueue(routingKey, data) {
-	channel.publish(config.amqp.queue, routingKey, new Buffer(data), {}, mkCallback(i));
+	channel.publish(config.amqp.queue, routingKey, new Buffer(data), {persistent: true}, mkCallback(i));
 }
 
 function processNext() {
