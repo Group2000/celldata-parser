@@ -60,6 +60,7 @@ module.exports = {
               Math.abs(neighbor.timestamp - measurement.timestamp) < 3600000) {
             neighbor.cell = measurement.cell;
             neighbor.area = measurement.area;
+            neighbor.uuid = measurement.uuid;
             this.push(neighbor);
             break;
           }
